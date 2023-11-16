@@ -3,6 +3,7 @@ import { Parser, packDataBytes } from "@taquito/michel-codec";
 import { BeaconWallet } from "@taquito/beacon-wallet";
 import { NetworkType } from "@airgap/beacon-dapp";
 import { SigningType } from "@airgap/beacon-sdk";
+import { char2Bytes } from "@taquito/utils";
 
 export const tezos = new TezosToolkit("https://ghostnet.smartpy.io");
 
@@ -28,47 +29,135 @@ export const getAccount = async () => {
   }
 };
 
+export const getPublicKey = async () => {
+  const activeAccount = await wallet.client.getActiveAccount();
+  if (activeAccount) {
+    return activeAccount.publicKey;
+  } else {
+    return "";
+  }
+};
+
 tezos.setWalletProvider(wallet);
 
-export const tranasction = async () => {
-  let _utilityName = "ABC";
-  let _expirable = false;
-  let _expiry = 0;
-  let _redeem_limit = 0;
-  let accountAddress = "tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb";
-  let nonce = 0;
-  let ttl = 0;
-
-  let data = `(Pair "${_utilityName}" (Pair "${_expirable}" (Pair ${_expiry} (Pair ${_redeem_limit} (Pair ${nonce} (Pair ${ttl} "${accountAddress}")))))))`;
-  //   // let data = `(Pair (Pair (Pair (Pair (Pair (Pair ))))))`
-  let type = `(pair (string) (pair (bool) (pair (nat) (pair (nat) (pair (nat) (pair (nat) (address)))))))`;
-
-  // let data = `(Pair "${_utilityName}" "${_expirable}")`;
-  // let type = `(pair (string) (bool))`;
-
+const makeSignature = async (data, type) => {
   let p = new Parser();
 
   const dataJSON = p.parseMichelineExpression(data);
   const typeJSON = p.parseMichelineExpression(type);
 
-  console.log(dataJSON);
-  console.log(typeJSON);
-
   const packed = packDataBytes(dataJSON, typeJSON);
-  console.log(packed);
 
   let payload = {
     signingType: SigningType.MICHELINE,
-    payload:
-      "05010000004254657a6f73205369676e6564204d6573736167653a206d79646170702e636f6d20323032312d30312d31345431353a31363a30345a2048656c6c6f20776f726c6421",
-    sourceAddress: accountAddress,
+    payload: packed.bytes,
   };
-  await wallet.requestPermissions({
-    network: {
-      type: NetworkType.GHOSTNET,
-    },
-  });
+
   const signed = await wallet.client.requestSignPayload(payload);
 
-  console.log(signed);
+  let result = {
+    bytes: packed.bytes,
+    sig: signed.signature,
+  };
+  return result;
+};
+
+// export const createUtility = async (
+//   _utilityName,
+//   _expirable,
+//   _expiry,
+//   _redeem_limit,
+//   nonce,
+//   ttl
+// ) => {
+//   let data = `(Pair "${_utilityName}" (Pair ${_expirable} (Pair ${_expiry} (Pair ${_redeem_limit} (Pair ${nonce} ${ttl}))))))`;
+//   let type = `(pair (string) (pair (bool) (pair (nat) (pair (nat) (pair (nat) (nat) )))))`;
+//   let result = await makeSignature(data, type);
+//   // get public key of signing account
+//   const account = await getPublicKey();
+//   console.log(account);
+
+//   const params = {
+//     utilityName: _utilityName,
+//     expirable: _expirable,
+//     expiry: _expiry,
+//     redeem_limit: _redeem_limit,
+//     _meta: {
+//       key: account,
+//       sig: result.sig,
+//       data_bytes: result.bytes,
+//     },
+//   };
+//   console.log(params);
+// };
+
+// export const claimUtility = async (_utilityId, tokenId, nonce, ttl) => {
+//   let data = `(Pair ${_utilityId} (Pair ${tokenId} (Pair ${nonce} ${ttl})))`;
+//   let type = `(pair (nat) (pair (nat) (pair (nat) (nat))))`;
+
+//   let result = await makeSignature(data, type);
+//   console.log(result);
+// };
+
+// export const transferUtility = async (
+//   _utilityId,
+//   tokenId,
+//   receiver,
+//   nonce,
+//   ttl
+// ) => {
+//   let data = `(Pair ${_utilityId} (Pair ${tokenId} (Pair "${receiver}" (Pair ${nonce} ${ttl}))))`;
+//   let type = `(pair (nat) (pair (nat) (pair (address) (pair (nat) (nat)))))`;
+
+//   let result = await makeSignature(data, type);
+//   console.log(result);
+// };
+
+// export const redeemUtility = async (_utilityId, tokenId, nonce, ttl) => {
+//   let data = `(Pair ${_utilityId} (Pair ${tokenId} (Pair ${nonce} ${ttl})))`;
+//   let type = `(pair (nat) (pair (nat) (pair (nat) (nat))))`;
+
+//   let result = await makeSignature(data, type);
+//   console.log(result);
+// };
+
+// export const rentUtility = async (
+//   _utilityId,
+//   tokenId,
+//   _renter,
+//   _rentalDuration,
+//   nonce,
+//   ttl
+// ) => {
+//   let data = `(Pair ${_utilityId} (Pair ${tokenId} (Pair "${_renter}" (Pair ${_rentalDuration} (Pair ${nonce} ${ttl})))))`;
+//   let type = `(pair (nat) (pair (nat) (pair (address) (pair (nat) (pair (nat) (nat))))))`;
+
+//   let result = await makeSignature(data, type);
+//   console.log(result);
+// };
+
+// export const transferAndRent = async (
+//   _utilityId,
+//   tokenId,
+//   _rental,
+//   _renter,
+//   _rentalDuration,
+//   nonce,
+//   ttl
+// ) => {
+//   let data = `(Pair ${_utilityId} (Pair ${tokenId} (Pair ${_rental} (Pair "${_renter}" (Pair ${_rentalDuration} (Pair ${nonce} ${ttl}))))))`;
+//   let type = `(pair (nat) (pair (nat) (pair (bool) (pair (address) (pair (nat) (pair (nat) (nat)))))))`;
+
+//   let result = await makeSignature(data, type);
+//   console.log(result);
+// };
+
+export const generalMint = async (_ipfsUrl, nonce, ttl) => {
+  let _ipfsHash = char2Bytes(_ipfsUrl);
+  console.log(_ipfsHash);
+  let data = `(Pair "${_ipfsHash}" (Pair ${nonce} ${ttl}))`;
+  let type = `(pair (bytes) (pair (nat) (nat)))`;
+
+  let result = await makeSignature(data, type);
+  console.log(result, _ipfsHash);
 };
